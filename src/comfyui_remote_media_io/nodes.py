@@ -1,10 +1,10 @@
-# Fichier : /comfyui/custom_nodes/comfyui_remote_media_io/src/comfyui_remote_media_io/nodes.py
-# Version finale et corrigée pour l'upload de vidéos vers BunnyCDN.
+# File: /comfyui/custom_nodes/comfyui_remote_media_io/src/comfyui_remote_media_io/nodes.py
+# Final and corrected version for uploading videos to BunnyCDN.
 
 import os
 import requests
 import folder_paths
-import uuid # Pour générer des noms de fichiers uniques
+import uuid # To generate unique filenames
 
 class BunnyCDNUploadVideo:
     @classmethod
@@ -34,59 +34,59 @@ class BunnyCDNUploadVideo:
         }.get(region, "storage.bunnycdn.com")
 
     def upload_video(self, media_file, storage_zone_name, access_key, storage_zone_region, remote_path, remote_filename_prefix=""):
-        # 1. Vérification des identifiants (via node ou variables d'environnement)
+        # 1. Check credentials (via node or environment variables)
         szn = storage_zone_name or os.getenv("BUNNY_STORAGE_ZONE_NAME")
         ak = access_key or os.getenv("BUNNY_ACCESS_KEY")
         if not szn or not ak:
-            print("ERREUR: Le nom de la zone de stockage ou la clé d'accès ne sont pas définis.")
+            print("ERROR: Storage zone name or access key are not defined.")
             return {"result": ("",)}
 
-        # 2. Sauvegarde de la vidéo dans un fichier temporaire
+        # 2. Save video to temporary file
         temp_dir = folder_paths.get_temp_directory()
-        # Génère un nom de fichier unique pour éviter les conflits et les problèmes de nommage
+        # Generate a unique filename to avoid conflicts and naming issues
         filename = f"{remote_filename_prefix}.mp4"
         local_filepath = os.path.join(temp_dir, filename)
 
         try:
-            print(f"Sauvegarde de la vidéo en cours dans le fichier temporaire : {local_filepath}")
-            # --- CORRECTION FINALE ---
-            # On appelle directement .save_to() sur l'objet media_file
+            print(f"Saving video to temporary file: {local_filepath}")
+            # --- FINAL CORRECTION ---
+            # Call .save_to() directly on the media_file object
             media_file.save_to(local_filepath, format="mp4", codec="h264")
         except Exception as e:
-            print(f"ERREUR lors de la sauvegarde de la vidéo en fichier temporaire : {e}")
+            print(f"ERROR saving video to temporary file: {e}")
             return {"result": ("",)}
 
-        # 3. Upload du fichier temporaire
+        # 3. Upload temporary file
         remote_full_path = os.path.join(remote_path, filename).replace("\\", "/")
         hostname = self.get_bunny_hostname(storage_zone_region)
         api_url = f"https://{hostname}/{szn}/{remote_full_path}"
         headers = {"AccessKey": ak, "Content-Type": "application/octet-stream"}
 
         try:
-            print(f"Envoi de '{local_filepath}' vers BunnyCDN...")
+            print(f"Sending '{local_filepath}' to BunnyCDN...")
             with open(local_filepath, 'rb') as f:
                 response = requests.put(api_url, data=f, headers=headers)
                 response.raise_for_status()
 
             public_url = f"https://{szn}.b-cdn.net/{remote_full_path}"
-            print(f"SUCCÈS ! URL publique : {public_url}")
+            print(f"SUCCESS! Public URL: {public_url}")
             
             return {"ui": {"bunny_cdn_url": [public_url]}, "result": (public_url,)}
 
         except Exception as e:
-            print(f"ERREUR lors de l'upload vers Bunny CDN : {e}")
+            print(f"ERROR uploading to Bunny CDN: {e}")
             return {"result": ("",)}
         finally:
-            # 4. Nettoyage du fichier temporaire après l'upload
+            # 4. Clean up temporary file after upload
             if os.path.exists(local_filepath):
-                print(f"Nettoyage du fichier temporaire : {local_filepath}")
+                print(f"Cleaning up temporary file: {local_filepath}")
                 os.remove(local_filepath)
 
-# Enregistrement du node pour ComfyUI
+# Register the node for ComfyUI
 NODE_CLASS_MAPPINGS = {
     "BunnyCDNUploadVideo": BunnyCDNUploadVideo
 }
-# Nom d'affichage du node dans l'interface
+# Display name of the node in the interface
 NODE_DISPLAY_NAME_MAPPINGS = {
     "BunnyCDNUploadVideo": "BunnyCDN Upload Video"
 }
