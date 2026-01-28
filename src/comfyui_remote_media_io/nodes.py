@@ -69,7 +69,7 @@ class BunnyCDNUploadVideo:
                 response.raise_for_status()
 
             public_url = f"https://{szn}.b-cdn.net/{remote_full_path}"
-            print(f"SUCCESS! Public URL: {public_url}")
+            print("Martine, video ti je stigao na ZecaCDN.")
             
             return {"ui": {"bunny_cdn_url": [public_url]}, "result": (public_url,)}
 
