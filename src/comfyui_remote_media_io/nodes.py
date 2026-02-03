@@ -69,9 +69,13 @@ class BunnyCDNUploadVideo:
                 response.raise_for_status()
 
             public_url = f"https://{szn}.b-cdn.net/{remote_full_path}"
-            print("Martine, video ti je stigao na ZecaCDN.")
-            
-            return {"ui": {"bunny_cdn_url": [public_url]}, "result": (public_url,)}
+            print(f"BUNNY_CDN_URL url={public_url}")
+
+            return {
+                "ui": {"bunny_cdn_url": [public_url]},
+                "result": (public_url,),
+                "bunny_cdn_url": public_url,
+            }
 
         except Exception as e:
             print(f"ERROR uploading to Bunny CDN: {e}")
