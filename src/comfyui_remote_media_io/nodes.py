@@ -26,6 +26,10 @@ class BunnyCDNUploadVideo:
     CATEGORY = "BunnyCDN"
     OUTPUT_NODE = True
 
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        return float("NaN")
+
     def get_bunny_hostname(self, region: str):
         return {
             "Falkenstein": "storage.bunnycdn.com", "New York": "ny.storage.bunnycdn.com",
@@ -39,7 +43,7 @@ class BunnyCDNUploadVideo:
         ak = access_key or os.getenv("BUNNY_ACCESS_KEY")
         if not szn or not ak:
             print("ERROR: Storage zone name or access key are not defined.")
-            return {"result": ("",)}
+            return {"ui": {"bunny_cdn_url": [""]}, "result": ("",)}
 
         # 2. Save video to temporary file
         temp_dir = folder_paths.get_temp_directory()
@@ -54,7 +58,7 @@ class BunnyCDNUploadVideo:
             media_file.save_to(local_filepath, format="mp4", codec="h264")
         except Exception as e:
             print(f"ERROR saving video to temporary file: {e}")
-            return {"result": ("",)}
+            return {"ui": {"bunny_cdn_url": [""]}, "result": ("",)}
 
         # 3. Upload temporary file
         remote_full_path = os.path.join(remote_path, filename).replace("\\", "/")
@@ -65,7 +69,7 @@ class BunnyCDNUploadVideo:
         try:
             print(f"Sending '{local_filepath}' to BunnyCDN...")
             with open(local_filepath, 'rb') as f:
-                response = requests.put(api_url, data=f, headers=headers)
+                response = requests.put(api_url, data=f, headers=headers, timeout=120)
                 response.raise_for_status()
 
             public_url = f"https://{szn}.b-cdn.net/{remote_full_path}"
@@ -74,12 +78,11 @@ class BunnyCDNUploadVideo:
             return {
                 "ui": {"bunny_cdn_url": [public_url]},
                 "result": (public_url,),
-                "bunny_cdn_url": public_url,
             }
 
         except Exception as e:
             print(f"ERROR uploading to Bunny CDN: {e}")
-            return {"result": ("",)}
+            return {"ui": {"bunny_cdn_url": [""]}, "result": ("",)}
         finally:
             # 4. Clean up temporary file after upload
             if os.path.exists(local_filepath):
