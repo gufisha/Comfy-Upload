@@ -4,7 +4,8 @@ import os
 import requests
 import folder_paths
 import uuid
-import torchaudio
+import subprocess
+import soundfile as sf
 
 class BunnyCDNUploadVideo:
     @classmethod
@@ -142,9 +143,18 @@ class BunnyCDNUploadAudio:
 
         try:
             print(f"Saving audio to temporary file: {local_filepath}")
-            waveform = audio["waveform"].squeeze(0)
+            waveform = audio["waveform"].squeeze(0).cpu().numpy().T
             sample_rate = audio["sample_rate"]
-            torchaudio.save(local_filepath, waveform, sample_rate, format=audio_format)
+            if audio_format == "mp3":
+                wav_path = local_filepath + ".wav"
+                sf.write(wav_path, waveform, sample_rate)
+                subprocess.run(
+                    ["ffmpeg", "-y", "-i", wav_path, "-b:a", "320k", local_filepath],
+                    check=True, capture_output=True,
+                )
+                os.remove(wav_path)
+            else:
+                sf.write(local_filepath, waveform, sample_rate)
         except Exception as e:
             print(f"ERROR saving audio to temporary file: {e}")
             return {"ui": {"bunny_cdn_url": [""]}, "result": ("",)}
