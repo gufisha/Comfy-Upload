@@ -1,10 +1,10 @@
 # File: /comfyui/custom_nodes/comfyui_remote_media_io/src/comfyui_remote_media_io/nodes.py
-# Final and corrected version for uploading videos to BunnyCDN.
 
 import os
 import requests
 import folder_paths
-import uuid # To generate unique filenames
+import uuid
+import torchaudio
 
 class BunnyCDNUploadVideo:
     @classmethod
@@ -89,11 +89,100 @@ class BunnyCDNUploadVideo:
                 print(f"Cleaning up temporary file: {local_filepath}")
                 os.remove(local_filepath)
 
-# Register the node for ComfyUI
+class BunnyCDNUploadAudio:
+    AUDIO_FORMATS = {
+        "mp3": {"ext": ".mp3", "content_type": "audio/mpeg"},
+        "wav": {"ext": ".wav", "content_type": "audio/wav"},
+        "flac": {"ext": ".flac", "content_type": "audio/flac"},
+        "ogg": {"ext": ".ogg", "content_type": "audio/ogg"},
+    }
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "audio": ("AUDIO",),
+                "audio_format": (["mp3", "wav", "flac", "ogg"],),
+                "storage_zone_name": ("STRING", {"default": ""}),
+                "access_key": ("STRING", {"default": "", "multiline": True}),
+                "storage_zone_region": (["Falkenstein", "New York", "Los Angeles", "Singapore", "Sydney"],),
+                "remote_path": ("STRING", {"default": "audio/"}),
+                "remote_filename_prefix": ("STRING", {"default": "comfyui_"}),
+            }
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("bunny_cdn_url",)
+    FUNCTION = "upload_audio"
+    CATEGORY = "BunnyCDN"
+    OUTPUT_NODE = True
+
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        return float("NaN")
+
+    def get_bunny_hostname(self, region: str):
+        return {
+            "Falkenstein": "storage.bunnycdn.com", "New York": "ny.storage.bunnycdn.com",
+            "Los Angeles": "la.storage.bunnycdn.com", "Singapore": "sg.storage.bunnycdn.com",
+            "Sydney": "syd.storage.bunnycdn.com",
+        }.get(region, "storage.bunnycdn.com")
+
+    def upload_audio(self, audio, audio_format, storage_zone_name, access_key, storage_zone_region, remote_path, remote_filename_prefix=""):
+        szn = storage_zone_name or os.getenv("BUNNY_STORAGE_ZONE_NAME")
+        ak = access_key or os.getenv("BUNNY_ACCESS_KEY")
+        if not szn or not ak:
+            print("ERROR: Storage zone name or access key are not defined.")
+            return {"ui": {"bunny_cdn_url": [""]}, "result": ("",)}
+
+        fmt = self.AUDIO_FORMATS[audio_format]
+        temp_dir = folder_paths.get_temp_directory()
+        filename = f"{remote_filename_prefix}{uuid.uuid4().hex[:8]}{fmt['ext']}"
+        local_filepath = os.path.join(temp_dir, filename)
+
+        try:
+            print(f"Saving audio to temporary file: {local_filepath}")
+            waveform = audio["waveform"].squeeze(0)
+            sample_rate = audio["sample_rate"]
+            torchaudio.save(local_filepath, waveform, sample_rate, format=audio_format)
+        except Exception as e:
+            print(f"ERROR saving audio to temporary file: {e}")
+            return {"ui": {"bunny_cdn_url": [""]}, "result": ("",)}
+
+        remote_full_path = os.path.join(remote_path, filename).replace("\\", "/")
+        hostname = self.get_bunny_hostname(storage_zone_region)
+        api_url = f"https://{hostname}/{szn}/{remote_full_path}"
+        headers = {"AccessKey": ak, "Content-Type": fmt["content_type"]}
+
+        try:
+            print(f"Sending '{local_filepath}' to BunnyCDN...")
+            with open(local_filepath, 'rb') as f:
+                response = requests.put(api_url, data=f, headers=headers, timeout=120)
+                response.raise_for_status()
+
+            public_url = f"https://{szn}.b-cdn.net/{remote_full_path}"
+            print(f"BUNNY_CDN_URL url={public_url}")
+
+            return {
+                "ui": {"bunny_cdn_url": [public_url]},
+                "result": (public_url,),
+            }
+
+        except Exception as e:
+            print(f"ERROR uploading to Bunny CDN: {e}")
+            return {"ui": {"bunny_cdn_url": [""]}, "result": ("",)}
+        finally:
+            if os.path.exists(local_filepath):
+                print(f"Cleaning up temporary file: {local_filepath}")
+                os.remove(local_filepath)
+
+
 NODE_CLASS_MAPPINGS = {
-    "BunnyCDNUploadVideo": BunnyCDNUploadVideo
+    "BunnyCDNUploadVideo": BunnyCDNUploadVideo,
+    "BunnyCDNUploadAudio": BunnyCDNUploadAudio,
 }
-# Display name of the node in the interface
+
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "BunnyCDNUploadVideo": "BunnyCDN Upload Video"
+    "BunnyCDNUploadVideo": "BunnyCDN Upload Video",
+    "BunnyCDNUploadAudio": "BunnyCDN Upload Audio",
 }
