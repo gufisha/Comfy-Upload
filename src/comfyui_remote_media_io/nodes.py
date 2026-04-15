@@ -138,7 +138,7 @@ class BunnyCDNUploadAudio:
 
         fmt = self.AUDIO_FORMATS[audio_format]
         temp_dir = folder_paths.get_temp_directory()
-        filename = f"{remote_filename_prefix}{uuid.uuid4().hex[:8]}{fmt['ext']}"
+        filename = f"{remote_filename_prefix}{fmt['ext']}"
         local_filepath = os.path.join(temp_dir, filename)
 
         try:
